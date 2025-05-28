@@ -18,7 +18,7 @@ A web-based chatbot to help clinical trial participants report and resolve compl
 
 ## 🚀 How to Use
 1. Visit the live demo link above
-2. Describe your complaint or concern
+2. Describe your complaint or concern - use questions.txt for sample
 3. Answer the follow-up questions
 4. Your complaint will be recorded with a unique ID
 
