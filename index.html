@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clinical Trial Complaints Chatbot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .message-animation {
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .typing-dots {
+            display: inline-flex;
+            align-items: center;
+        }
+        .typing-dots span {
+            height: 8px;
+            width: 8px;
+            background-color: #9CA3AF;
+            border-radius: 50%;
+            display: inline-block;
+            margin: 0 2px;
+            animation: typing 1.4s infinite ease-in-out;
+        }
+        .typing-dots span:nth-child(1) { animation-delay: 0s; }
+        .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typing {
+            0%, 80%, 100% { transform: scale(0); opacity: 0.5; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+        .chat-container {
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+        .floating-button {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+        @media (max-width: 768px) {
+            .chat-container {
+                height: 100vh;
+                border-radius: 0;
+            }
+        }
+        .admin-panel {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+        }
+        .admin-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    <!-- Floating chat toggle button -->
+    <button id="chatToggle" class="floating-button bg-blue-600 text-white p-4 rounded-full shadow-lg hover:bg-blue-700 transition-all transform hover:scale-105">
+        <i class="fas fa-comments text-xl"></i>
+    </button>
+
+    <!-- Main chat container -->
+    <div id="chatContainer" class="min-h-screen flex items-center justify-center p-4">
+        <div class="max-w-2xl w-full bg-white rounded-lg chat-container overflow-hidden">
+            <!-- Header -->
+            <div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4 relative">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                            <i class="fas fa-user-md text-lg"></i>
+                        </div>
+                        <div>
+                            <h1 class="text-xl font-semibold">Clinical Trial Support</h1>
+                            <p class="text-blue-100 text-sm">Complaint Resolution Assistant</p>
+                        </div>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button id="adminBtn" class="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors" title="Admin Panel">
+                            <i class="fas fa-cog"></i>
+                        </button>
+                        <button id="resetBtn" class="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors" title="Reset Chat">
+                            <i class="fas fa-refresh"></i>
+                        </button>
+                        <button id="minimizeBtn" class="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors" title="Minimize">
+                            <i class="fas fa-minus"></i>
+                        </button>
+                    </div>
+                </div>
+                <!-- Status indicator -->
+                <div class="mt-2 flex items-center text-xs">
+                    <div class="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></div>
+                    <span>Online - Ready to help</span>
+                </div>
+            </div>
+
+            <!-- Messages Area -->
+            <div id="messages" class="h-96 overflow-y-auto p-4 space-y-4 bg-gray-50">
+                <div class="flex justify-start message-animation">
+                    <div class="flex items-start space-x-2">
+                        <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+                            <i class="fas fa-robot text-white text-sm"></i>
+                        </div>
+                        <div class="bg-white border border-gray-200 p-3 rounded-lg max-w-xs lg:max-w-md shadow-sm">
+                            <p class="text-sm">Hello! I'm here to help you with any concerns or complaints about your clinical trial experience. Please describe your issue, and I'll ask relevant follow-up questions to better assist you.</p>
+                            <p class="text-gray-500 text-xs mt-1">${new Date().toLocaleTimeString()}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick suggestions -->
+            <div id="suggestions" class="px-4 pb-2">
+                <div class="text-xs text-gray-500 mb-2">Quick suggestions:</div>
+                <div class="flex flex-wrap gap-2">
+                    <button class="suggestion-btn bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-full text-xs transition-colors" data-text="The nurse was rude to me">Staff conduct issue</button>
+                    <button class="suggestion-btn bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-full text-xs transition-colors" data-text="My appointment was cancelled">Scheduling problem</button>
+                    <button class="suggestion-btn bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-full text-xs transition-colors" data-text="I experienced side effects">Medication concern</button>
+                    <button class="suggestion-btn bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-full text-xs transition-colors" data-text="help">Show categories</button>
+                </div>
+            </div>
+
+            <!-- Input Area -->
+            <div class="p-4 border-t bg-white">
+                <div class="flex space-x-2">
+                    <div class="relative flex-1">
+                        <textarea
+                            id="userInput"
+                            placeholder="Describe your concern or complaint..."
+                            class="w-full p-3 pr-10 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            rows="2"
+                            maxlength="500"
+                        ></textarea>
+                        <div class="absolute bottom-2 right-2 text-xs text-gray-400">
+                            <span id="charCount">0</span>/500
+                        </div>
+                    </div>
+                    <button
+                        id="sendBtn"
+                        class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled
+                    >
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+                <div class="mt-2 text-xs text-gray-500">
+                    <i class="fas fa-shield-alt mr-1"></i>
+                    Your data is processed securely and confidentially
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Panel -->
+    <div id="adminPanel" class="admin-panel">
+        <div class="admin-content">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold">Admin Panel</h2>
+                <button id="closeAdmin" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-4">
+                <div>
+                    <h3 class="font-medium mb-2">Conversation Statistics</h3>
+                    <div class="bg-gray-50 p-3 rounded">
+                        <div class="text-sm">
+                            <div>Total Messages: <span id="totalMessages">0</span></div>
+                            <div>Complaints Recorded: <span id="totalComplaints">0</span></div>
+                            <div>Current Session: <span id="sessionTime">0</span> minutes</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div>
+                    <h3 class="font-medium mb-2">Recorded Complaints</h3>
+                    <div id="complaintsList" class="bg-gray-50 p-3 rounded max-h-40 overflow-y-auto text-sm">
+                        No complaints recorded yet.
+                    </div>
+                </div>
+                
+                <div class="flex space-x-2">
+                    <button id="exportData" class="flex-1 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-colors">
+                        <i class="fas fa-download mr-2"></i>Export Data
+                    </button>
+                    <button id="clearData" class="flex-1 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition-colors">
+                        <i class="fas fa-trash mr-2"></i>Clear Data
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Your complete complaints data from the Excel file
+        const complaintsData = [
+            { category: "Site Staff Conduct", question: "The nurse was rude.", followup: "Can you please tell me the Site ID and date of that visit?" },
+            { category: "Site Staff Conduct", question: "My coordinator never returned my calls.", followup: "Which coordinator (name or ID) and on what date did you try to reach them?" },
+            { category: "Site Staff Conduct", question: "The phlebotomist hurt me during blood draw.", followup: "I am sorry can you share your Subject ID and when this occurred?" },
+            { category: "Site Staff Conduct", question: "I felt the staff was unprofessional.", followup: "Could you specify which staff member or role (e.g. clinician, assistant) and the visit date?" },
+            { category: "Site Staff Conduct", question: "They kept me waiting for hours.", followup: "Which visit was this (e.g. Screening, Week 4) and how long were you waiting?" },
+            { category: "Site Staff Conduct", question: "The receptionist ignored me.", followup: "Please provide the Site name and approximate time or date of your visit." },
+            { category: "Site Staff Conduct", question: "The doctor was abrupt.", followup: "Can you share the visit date and the physicians name?" },
+            { category: "Site Staff Conduct", question: "I was not given privacy during my exam.", followup: "Which examination (e.g. ECG, physical) and where on-site did this happen?" },
+            { category: "Site Staff Conduct", question: "They did not explain the procedures well.", followup: "What procedure (e.g. biopsy, ECG) and on what date did this occur?" },
+            { category: "Site Staff Conduct", question: "The staff seemed unprepared.", followup: "Which staff members appeared unprepared and during which visit or procedure?" },
+            
+            { category: "Scheduling & Visits", question: "My appointment was cancelled at the last minute.", followup: "When was your appointment scheduled for and how much notice were you given?" },
+            { category: "Scheduling & Visits", question: "I could not reach anyone to schedule my visit.", followup: "What phone number did you try and over what time period did you attempt to call?" },
+            { category: "Scheduling & Visits", question: "The appointment times offered don't work for me.", followup: "What times work best for you and which visit is this for?" },
+            { category: "Scheduling & Visits", question: "I was not reminded about my appointment.", followup: "What is your preferred reminder method (call, text, email) and your contact information?" },
+            { category: "Scheduling & Visits", question: "The visit took much longer than expected.", followup: "Which visit was this and how long did it take compared to what you were told?" },
+            { category: "Scheduling & Visits", question: "I had to reschedule multiple times.", followup: "How many times have you rescheduled and what were the reasons?" },
+            { category: "Scheduling & Visits", question: "No one told me what to expect during my visit.", followup: "Which visit is this regarding and what information would have been helpful?" },
+            { category: "Scheduling & Visits", question: "The location was difficult to find.", followup: "Which site location and what specific directions or signage would have helped?" },
+            { category: "Scheduling & Visits", question: "Parking was a problem.", followup: "At which site and would you like information about alternative parking options?" },
+            { category: "Scheduling & Visits", question: "The clinic hours don't accommodate my schedule.", followup: "What hours would work better for you and for which types of visits?" },
+            
+            { category: "Equipment & Facilities", question: "The room was too cold/hot.", followup: "Which room or area and during which visit did you experience this?" },
+            { category: "Equipment & Facilities", question: "The equipment looked old or dirty.", followup: "What specific equipment and in which room or area of the site?" },
+            { category: "Equipment & Facilities", question: "There was no privacy in the waiting area.", followup: "What specific privacy concerns do you have about the waiting area layout?" },
+            { category: "Equipment & Facilities", question: "The facilities were not accessible.", followup: "What accessibility features do you need and which areas of the site were problematic?" },
+            { category: "Equipment & Facilities", question: "The restrooms were not clean.", followup: "Which restroom and when did you notice this issue?" },
+            { category: "Equipment & Facilities", question: "There was not enough seating in the waiting area.", followup: "How long did you have to wait standing and during which visit?" },
+            { category: "Equipment & Facilities", question: "The noise level was disruptive.", followup: "What was the source of the noise and in which area of the facility?" },
+            { category: "Equipment & Facilities", question: "The lighting was poor.", followup: "In which specific room or area was the lighting inadequate?" },
+            { category: "Equipment & Facilities", question: "The exam room was too small.", followup: "Which exam room and what made the space feel inadequate?" },
+            { category: "Equipment & Facilities", question: "There was no place to store my belongings.", followup: "In which room and what items did you need to store?" },
+            
+            { category: "Medication & Treatment Procedures", question: "I experienced side effects that weren't explained.", followup: "What side effects did you experience and when did they start?" },
+            { category: "Medication & Treatment Procedures", question: "The medication instructions were unclear.", followup: "Which medication and what specific instructions need clarification?" },
+            { category: "Medication & Treatment Procedures", question: "I was not prepared for how invasive the procedure would be.", followup: "Which procedure and what information would have better prepared you?" },
+            { category: "Medication & Treatment Procedures", question: "The medication pickup process was confusing.", followup: "What part of the pickup process was confusing and at which pharmacy or location?" },
+            { category: "Medication & Treatment Procedures", question: "I ran out of medication.", followup: "Which medication, when did you run out, and when did you last contact the site?" },
+            { category: "Medication & Treatment Procedures", question: "The procedure was more painful than expected.", followup: "Which procedure, what pain level (1-10), and when did this occur?" },
+            { category: "Medication & Treatment Procedures", question: "No one explained the risks properly.", followup: "Which treatment or procedure and what risks were you not informed about?" },
+            { category: "Medication & Treatment Procedures", question: "The dosage seemed wrong.", followup: "Which medication, what dosage were you given, and what are your concerns?" },
+            { category: "Medication & Treatment Procedures", question: "I was not told about drug interactions.", followup: "Which study medication and what other medications are you taking?" },
+            { category: "Medication & Treatment Procedures", question: "The treatment schedule is too demanding.", followup: "What aspects of the schedule are challenging and which treatments are affected?" },
+            
+            { category: "Adverse Events & Safety Reporting", question: "I had a serious reaction but no one followed up.", followup: "What type of reaction, when did it occur, and did you report it to the site?" },
+            { category: "Adverse Events & Safety Reporting", question: "I don't know how to report a side effect.", followup: "What side effect are you experiencing and do you have the emergency contact information?" },
+            { category: "Adverse Events & Safety Reporting", question: "The emergency contact number didn't work.", followup: "What number did you try, when, and what was the nature of your emergency?" },
+            { category: "Adverse Events & Safety Reporting", question: "I was told my concerns weren't related to the study.", followup: "What were your concerns and who dismissed them as unrelated?" },
+            { category: "Adverse Events & Safety Reporting", question: "No one explained what to do in case of emergency.", followup: "Do you have the 24-hour emergency contact card and what type of emergency information do you need?" },
+            { category: "Adverse Events & Safety Reporting", question: "I feel like my safety concerns are being ignored.", followup: "What specific safety concerns do you have and who have you spoken with about them?" },
+            { category: "Adverse Events & Safety Reporting", question: "The follow-up for my adverse event was inadequate.", followup: "What adverse event occurred, when was it reported, and what follow-up did you receive?" },
+            { category: "Adverse Events & Safety Reporting", question: "I'm having symptoms but don't know if they're serious.", followup: "What symptoms are you experiencing and when did they start?" },
+            { category: "Adverse Events & Safety Reporting", question: "The safety monitoring seems insufficient.", followup: "What safety monitoring do you think is lacking and what are your specific concerns?" },
+            { category: "Adverse Events & Safety Reporting", question: "I was not given proper emergency instructions.", followup: "What emergency instructions do you need and what situation are you concerned about?" }
+        ];
+
+        // Application state
+        let conversationState = {};
+        let messageCount = 0;
+        let complaintRecords = JSON.parse(localStorage.getItem('complaintRecords') || '[]');
+        let sessionStart = new Date();
+        let isMinimized = false;
+
+        // Text similarity function
+        function calculateSimilarity(text1, text2) {
+            const words1 = text1.toLowerCase().split(/\s+/);
+            const words2 = text2.toLowerCase().split(/\s+/);
+            
+            const commonWords = words1.filter(word => 
+                words2.some(w2 => w2.includes(word) || word.includes(w2))
+            );
+            
+            return commonWords.length / Math.max(words1.length, words2.length);
+        }
+
+        // Find best matching complaint
+        function findBestMatch(userMessage) {
+            let bestMatch = null;
+            let bestScore = 0;
+
+            complaintsData.forEach(complaint => {
+                const score = calculateSimilarity(userMessage, complaint.question);
+                if (score > bestScore && score > 0.2) {
+                    bestScore = score;
+                    bestMatch = complaint;
+                }
+            });
+
+            return { match: bestMatch, score: bestScore };
+        }
+
+        // Generate bot response
+        function generateResponse(userMessage) {
+            const lowerMessage = userMessage.toLowerCase();
+            
+            // Check for greetings
+            if (lowerMessage.includes('hello') || lowerMessage.includes('hi') || lowerMessage.includes('hey')) {
+                return "Hello! I'm here to help with any concerns about your clinical trial experience. What issue would you like to discuss?";
+            }
+
+            // Check for help requests
+            if (lowerMessage.includes('help') || lowerMessage.includes('what can you do')) {
+                const categories = [...new Set(complaintsData.map(item => item.category))];
+                return `I can help you with clinical trial complaints in these areas:\n\n${categories.map(cat => `• ${cat}`).join('\n')}\n\nPlease describe your specific concern and I'll ask relevant follow-up questions.`;
+            }
+
+            // Try to find a matching complaint
+            const { match, score } = findBestMatch(userMessage);
+            
+            if (match) {
+                // Store the match for potential follow-up
+                conversationState = {
+                    lastMatch: match,
+                    awaitingFollowUp: true,
+                    originalComplaint: userMessage,
+                    confidence: score
+                };
+                
+                return `I understand you're experiencing an issue with ${match.category.toLowerCase()}. ${match.followup}`;
+            }
+
+            // Check if this might be a follow-up answer
+            if (conversationState.awaitingFollowUp && conversationState.lastMatch) {
+                const complaintRecord = {
+                    id: Date.now(),
+                    category: conversationState.lastMatch.category,
+                    originalComplaint: conversationState.originalComplaint,
+                    followUpAnswer: userMessage,
+                    confidence: conversationState.confidence,
+                    timestamp: new Date().toISOString(),
+                    resolved: false
+                };
+                
+                complaintRecords.push(complaintRecord);
+                localStorage.setItem('complaintRecords', JSON.stringify(complaintRecords));
+                
+                conversationState = {
+                    ...conversationState,
+                    awaitingFollowUp: false,
+                    completed: true
+                };
+                
+                updateAdminPanel();
+                
+                return `Thank you for providing that information. I've recorded your concern about ${conversationState.lastMatch.category.toLowerCase()}. Your complaint has been logged with ID #${complaintRecord.id} and will be reviewed by the appropriate team.\n\nIs there anything else you'd like to report or discuss about your trial experience?`;
+            }
+
+            // Default response
+            return "I understand you have a concern. Could you please provide more details about what specific issue you're experiencing? This will help me ask the right follow-up questions to better assist you.";
+        }
+
+        // Add message to chat
+        function addMessage(content, isUser = false, showTyping = false) {
+            const messagesContainer = document.getElementById('messages');
+            
+            if (showTyping) {
+                // Add typing indicator
+                const typingDiv = document.createElement('div');
+                typingDiv.className = 'flex justify-start';
+                typingDiv.id = 'typing-indicator';
+                typingDiv.innerHTML = `
+                    <div class="flex items-start space-x-2">
+                        <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+                            <i class="fas fa-robot text-white text-sm"></i>
+                        </div>
+                        <div class="bg-white border border-gray-200 p-3 rounded-lg">
+                            <div class="typing-dots">
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                messagesContainer.appendChild(typingDiv);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                return;
+            }
+            
+            // Remove typing indicator if it exists
+            const typingIndicator = document.getElementById('typing-indicator');
+            if (typingIndicator) {
+                typingIndicator.remove();
+            }
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `flex ${isUser ? 'justify-end' : 'justify-start'} message-animation`;
+            
+            messageDiv.innerHTML = `
+                <div class="flex items-start space-x-2 ${isUser ? 'flex-row-reverse space-x-reverse' : ''}">
+                    <div class="w-8 h-8 ${isUser ? 'bg-gray-600' : 'bg-blue-600'} rounded-full flex items-center justify-center flex-shrink-0">
+                        <i class="fas ${isUser ? 'fa-user' : 'fa-robot'} text-white text-sm"></i>
+                    </div>
+                    <div class="${isUser ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200'} p-3 rounded-lg max-w-xs lg:max-w-md shadow-sm">
+                        <p class="text-sm whitespace-pre-wrap">${content}</p>
+                        <p class="${isUser ? 'text-blue-100' : 'text-gray-500'} text-xs mt-1">
+                            ${new Date().toLocaleTimeString()}
+                        </p>
+                    </div>
+                </div>
+            `;
+            
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            messageCount++;
+        }
+
+        // Handle sending messages
+        function sendMessage() {
+            const input = document.getElementById('userInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            // Add user message
+            addMessage(message, true);
+            input.value = '';
+            updateCharCount();
+            updateSendButton();
+            
+            // Hide suggestions after first message
+            if (messageCount === 1) {
+                document.getElementById('suggestions').style.display = 'none';
+            }
+            
+            // Show typing indicator
+            addMessage('', false, true);
+            
+            // Generate response after a delay
+            setTimeout(() => {
+                const response = generateResponse(message);
+                addMessage(response);
+            }, 1000 + Math.random() * 1000);
+        }
+
+        // Update character count
+        function updateCharCount() {
+            const input = document.getElementById('userInput');
+            const count = input.value.length;
+            document.getElementById('charCount').textContent = count;
+            
+            if (count > 450) {
+                document.getElementById('charCount').className = 'text-red-500';
+            } else if (count > 400) {
+                document.getElementById('charCount').className = 'text-yellow-500';
+            } else {
+                document.getElementById('charCount').className = 'text-gray-400';
+            }
+        }
+
+        // Update send button state
+        function updateSendButton() {
+            const input = document.getElementById('userInput');
+            const sendBtn = document.getElementById('sendBtn');
+            sendBtn.disabled = !input.value.trim();
+        }
+
+        // Reset chat
+        function resetChat() {
+            if (confirm('Are you sure you want to reset the chat? This will clear all messages but keep complaint records.')) {
+                document.getElementById('messages').innerHTML = `
+                    <div class="flex justify-start message-animation">
+                        <div class="flex items-start space-x-2">
+                            <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+                                <i class="fas fa-robot text-white text-sm"></i>
+                            </div>
+                            <div class="bg-white border border-gray-200 p-3 rounded-lg max-w-xs lg:max-w-md shadow-sm">
+                                <p class="text-sm">Hello! I'm here to help you with any concerns or complaints about your clinical trial experience. Please describe your issue, and I'll ask relevant follow-up questions to better assist you.</p>
+                                <p class="text-gray-500 text-xs mt-1">${new Date().toLocaleTimeString()}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                conversationState = {};
+                messageCount = 0;
+                document.getElementById('suggestions').style.display = 'block';
+                sessionStart = new Date();
+            }
+        }
+
+        // Toggle chat visibility
+        function toggleChat() {
+            const container = document.getElementById('chatContainer');
+            const toggleBtn = document.getElementById('chatToggle');
+            
+            if (isMinimized) {
+                container.style.display = 'flex';
+                toggleBtn.style.display = 'none';
+                isMinimized = false;
+            } else {
+                container.style.display = 'none';
+                toggleBtn.style.display = 'block';
+                isMinimized = true;
+            }
+        }
+
+        // Update admin panel
+        function updateAdminPanel() {
+            document.getElementById('totalMessages').textContent = messageCount;
+            document.getElementById('totalComplaints').textContent = complaintRecords.length;
+            
+            const sessionMinutes = Math.floor((new Date() - sessionStart) / 60000);
+            document.getElementById('sessionTime').textContent = sessionMinutes;
+            
+            const complaintsList = document.getElementById('complaintsList');
+            if (complaintRecords.length === 0) {
+                complaintsList.innerHTML = 'No complaints recorded yet.';
+            } else {
+                complaintsList.innerHTML = complaintRecords.slice(-5).reverse().map(record => `
+                    <div class="mb-2 p-2 bg-white rounded border-l-4 border-blue-500">
+                        <div class="font-medium">#${record.id} - ${record.category}</div>
+                        <div class="text-xs text-gray-600">${new Date(record.timestamp).toLocaleString()}</div>
+                        <div class="text-xs mt-1">${record.originalComplaint.substring(0, 50)}...</div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        // Export data
+        function exportData() {
+            const data = {
+                complaints: complaintRecords,
+                session: {
+                    startTime: sessionStart.toISOString(),
+                    duration: Math.floor((new Date() - sessionStart) / 60000),
+                    messageCount: messageCount
+                },
+                exportTime: new Date().toISOString()
+            };
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `trial-complaints-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // Clear data
+        function clearData() {
+            if (confirm('Are you sure you want to clear all complaint records? This action cannot be undone.')) {
+                complaintRecords = [];
+                localStorage.removeItem('complaintRecords');
+                updateAdminPanel();
+                alert('All complaint records have been cleared.');
+            }
+        }
+
+        // Event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            const userInput = document.getElementById('userInput');
+            const sendBtn = document.getElementById('sendBtn');
+            const chatToggle = document.getElementById('chatToggle');
+            const minimizeBtn = document.getElementById('minimizeBtn');
+            const resetBtn = document.getElementById('resetBtn');
+            const adminBtn = document.getElementById('adminBtn');
+            const adminPanel = document.getElementById('adminPanel');
+            const closeAdmin = document.getElementById('closeAdmin');
+            const exportBtn = document.getElementById('exportData');
+            const clearBtn = document.getElementById('clearData');
+
+            // Chat functionality
+            sendBtn.addEventListener('click', sendMessage);
+            userInput.addEventListener('input', function() {
+                updateCharCount();
+                updateSendButton();
+            });
+            
+            userInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+
+            // Suggestion buttons
+            document.querySelectorAll('.suggestion-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    userInput.value = this.dataset.text;
+                    updateCharCount();
+                    updateSendButton();
+                    sendMessage();
+                });
+            });
+
+            // UI controls
+            chatToggle.addEventListener('click', toggleChat);
+            minimizeBtn.addEventListener('click', toggleChat);
+            resetBtn.addEventListener('click', resetChat);
+
+            // Admin panel
+            adminBtn.addEventListener('click', function() {
+                updateAdminPanel();
+                adminPanel.style.display = 'block';
+            });
+
+            closeAdmin.addEventListener('click', function() {
+                adminPanel.style.display = 'none';
+            });
+
+            exportBtn.addEventListener('click', exportData);
+            clearBtn.addEventListener('click', clearData);
+
+            // Close admin panel when clicking outside
+            adminPanel.addEventListener('click', function(e) {
+                if (e.target === adminPanel) {
+                    adminPanel.style.display = 'none';
+                }
+            });
+
+            // Initialize UI
+            updateCharCount();
+            updateSendButton();
+            updateAdminPanel();
+
+            // Auto-update session time every minute
+            setInterval(updateAdminPanel, 60000);
+
+            // Initially hide the toggle button
+            chatToggle.style.display = 'none';
+        });
+
+        // Add some helpful keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            // Ctrl/Cmd + R to reset (prevent default browser refresh)
+            if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
+                e.preventDefault();
+                resetChat();
+            }
+            
+            // Escape to minimize/show chat
+            if (e.key === 'Escape') {
+                toggleChat();
+            }
+        });
+
+        // Add notification sound function (optional)
+        function playNotificationSound() {
+            // Create a simple notification sound
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.value = 800;
+            oscillator.type = 'sine';
+            
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.3);
+        }
+
+        // Enhanced response generation with better matching
+        function generateEnhancedResponse(userMessage) {
+            const lowerMessage = userMessage.toLowerCase();
+            
+            // Priority keywords for urgent issues
+            const urgentKeywords = ['emergency', 'serious', 'severe', 'hospital', 'ambulance', 'death', 'suicide'];
+            const isUrgent = urgentKeywords.some(keyword => lowerMessage.includes(keyword));
+            
+            if (isUrgent) {
+                return "🚨 This sounds like an urgent safety concern. Please contact your site's 24-hour emergency number immediately. If this is a life-threatening emergency, call 911 or your local emergency services. Your safety is our top priority.\n\nEmergency Contact: [Your site should provide this number]\n\nOnce you've addressed the immediate concern, please let me know what happened so I can help document this properly.";
+            }
+            
+            // Category-specific responses
+            const categoryKeywords = {
+                'Site Staff Conduct': ['rude', 'unprofessional', 'ignored', 'abrupt', 'dismissive', 'staff', 'nurse', 'doctor', 'coordinator'],
+                'Scheduling & Visits': ['appointment', 'schedule', 'cancelled', 'reschedule', 'timing', 'late', 'waiting'],
+                'Equipment & Facilities': ['room', 'equipment', 'facility', 'clean', 'dirty', 'broken', 'uncomfortable'],
+                'Medication & Treatment Procedures': ['medication', 'pill', 'injection', 'procedure', 'treatment', 'side effect'],
+                'Adverse Events & Safety Reporting': ['reaction', 'adverse', 'safety', 'report', 'emergency', 'symptom']
+            };
+            
+            // Find category based on keywords
+            let suggestedCategory = null;
+            let maxMatches = 0;
+            
+            Object.entries(categoryKeywords).forEach(([category, keywords]) => {
+                const matches = keywords.filter(keyword => lowerMessage.includes(keyword)).length;
+                if (matches > maxMatches) {
+                    maxMatches = matches;
+                    suggestedCategory = category;
+                }
+            });
+            
+            // Use original response generation as fallback
+            const originalResponse = generateResponse(userMessage);
+            
+            // Add category suggestion if we found one but no direct match
+            if (suggestedCategory && !conversationState.lastMatch) {
+                return `${originalResponse}\n\nBased on your message, this might be related to ${suggestedCategory}. Feel free to provide more details about this specific area.`;
+            }
+            
+            return originalResponse;
+        }
+
+        // Add some CSS animations for better UX
+        const style = document.createElement('style');
+        style.textContent = `
+            .pulse-green {
+                animation: pulse-green 2s infinite;
+            }
+            @keyframes pulse-green {
+                0%, 100% { background-color: #10B981; }
+                50% { background-color: #34D399; }
+            }
+            
+            .shake {
+                animation: shake 0.5s;
+            }
+            @keyframes shake {
+                0%, 100% { transform: translateX(0); }
+                25% { transform: translateX(-5px); }
+                75% { transform: translateX(5px); }
+            }
+            
+            .fade-in {
+                animation: fadeIn 0.5s;
+            }
+            @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
+        `;
+        document.head.appendChild(style);
+
+        // Add copy functionality for complaint IDs
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                // Show feedback
+                const notification = document.createElement('div');
+                notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded shadow-lg z-50 fade-in';
+                notification.textContent = 'Copied to clipboard!';
+                document.body.appendChild(notification);
+                
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 2000);
+            });
+        }
+
+        // Enhanced admin panel with more statistics
+        function generateDetailedReport() {
+            const categoryStats = {};
+            complaintRecords.forEach(record => {
+                categoryStats[record.category] = (categoryStats[record.category] || 0) + 1;
+            });
+            
+            const report = {
+                summary: {
+                    totalComplaints: complaintRecords.length,
+                    categoriesAffected: Object.keys(categoryStats).length,
+                    sessionDuration: Math.floor((new Date() - sessionStart) / 60000),
+                    averageConfidence: complaintRecords.length > 0 ? 
+                        (complaintRecords.reduce((sum, r) => sum + (r.confidence || 0), 0) / complaintRecords.length).toFixed(2) : 0
+                },
+                categoryBreakdown: categoryStats,
+                complaints: complaintRecords.map(record => ({
+                    id: record.id,
+                    category: record.category,
+                    timestamp: record.timestamp,
+                    confidence: record.confidence || 0,
+                    preview: record.originalComplaint.substring(0, 100) + '...'
+                })),
+                recommendations: generateRecommendations(categoryStats)
+            };
+            
+            return report;
+        }
+        
+        function generateRecommendations(categoryStats) {
+            const recommendations = [];
+            
+            Object.entries(categoryStats).forEach(([category, count]) => {
+                if (count >= 3) {
+                    recommendations.push(`High volume of complaints in ${category} - consider staff training or process review`);
+                }
+            });
+            
+            if (recommendations.length === 0) {
+                recommendations.push('No immediate action items identified. Continue monitoring for patterns.');
+            }
+            
+            return recommendations;
+        }
+
+        console.log('Clinical Trial Complaints Chatbot loaded successfully!');
+        console.log('Features: Smart matching, admin panel, data export, keyboard shortcuts');
+        console.log('Shortcuts: Ctrl+R (reset), Escape (minimize), Enter (send)');
+    </script>
+</body>
+</html>
+                
